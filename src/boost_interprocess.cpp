@@ -1,7 +1,9 @@
-
-
-
-
+/*!
+ *  \brief     Passing data from one process to another using boost interprocess
+ *  \author    Katsileros Petros
+ *  \date      21/01/2016
+ *  \copyright
+ */
 
 
 #include <boost/interprocess/managed_shared_memory.hpp>
