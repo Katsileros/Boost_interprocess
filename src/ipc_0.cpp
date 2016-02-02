@@ -234,31 +234,6 @@ void readMsg()
 
 }
 
-struct messageID {
-    //MESSAGE IDS
-
-    //CLIENT OUTGOING -- SOLVER INCOMING
-    const int IPC_CLIENT_VER = 1;  // | 1 | int(version) |
-    const int IPC_SIM_DATA = 2;
-    const int IPC_MESH_DATA = 3; // | sz | 2 | vector.size() | vector{Triangle,Triangle ... Triangle} | //add version
-    const int IPC_ENV_DATA = 4;
-    const int IPC_REQ_SOLVE = 5;
-    const int IPC_REQ_STATE = 6;
-    const int IPC_REQ_SHUTDOWN = 7;
-
-    //CLIENT INCOMING -- SERVER OUTGOING
-    const int IPC_SERVER_VERSION = 8;
-    const int IPC_SOLVER_VERSION = 9;  // | 1 | int(version) |
-    const int IPC_POST_PROC_DATA = 10; // | sz | 2 | vector.size() | vector{Triangle,Triangle ... Triangle} | //add version
-    const int IPC_SOLVER_STATE = 11;
-    const int IPC_SOLVER_SHUTTING_DOWN = 12;
-    const int IPC_ERROR = 13;
-
-    // CLIENT && SERVER Text Message
-    // From 99-- there will be the text messages, for simple text communication
-    const int IPC_TEXT_MESSAGE = 99;
-
-};
 
 void createMsgSharedMem()
 {
