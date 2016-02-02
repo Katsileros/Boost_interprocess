@@ -11,14 +11,18 @@ SET( PROJECT_DIR ${PROJECT_SOURCE_DIR} )
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+include_directories(include)
+
 find_package(Boost 1.54.0)
 if(Boost_FOUND)
   include_directories(${Boost_INCLUDE_DIRS})
+  link_directories(${Boost_LIBRARY_DIR})
 endif()
 
-set( SRC src/boost_interprocess.cpp)
-add_executable(inproc ${SRC})
-target_link_libraries(inproc ${Boost_LIBARIES} rt pthread)
+add_executable(ipc_0 src/ipc_0.cpp)
+add_executable(ipc_1 src/ipc_1.cpp)
+target_link_libraries(ipc_0 ${Boost_LIBARIES} boost_system rt pthread boost_thread)
+target_link_libraries(ipc_1 ${Boost_LIBARIES} boost_system rt pthread boost_thread)
 
 #MESSAGE( STATUS )
 #MESSAGE( STATUS "==============BOOST Interprocess CMAKELISTS.TXT EXITING==============")
