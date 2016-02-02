@@ -122,21 +122,6 @@ void readMsg()
     switch(*intmsg)
     {
 
-        //CLIENT OUTGOING -- SOLVER INCOMING
-        // IPC_CLIENT_VER
-        case(1):
-        {
-
-        }
-        break;
-
-        // IPC_SIM_DATA
-        case(2):
-        {
-
-        }
-        break;
-
         // IPC_MESH_DATA
         case(3):
         {
@@ -152,13 +137,6 @@ void readMsg()
         }
         break;
 
-        // IPC_ENV_DATA
-        case(4):
-        {
-
-        }
-        break;
-
         // IPC_REQ_SOLVE
         case(5):
         {
@@ -166,62 +144,6 @@ void readMsg()
         }
         break;
 
-        // IPC_REQ_STATE
-        case(6):
-        {
-
-        }
-        break;
-
-        // IPC_REQ_SHUTDOWN
-        case(7):
-        {
-
-        }
-        break;
-
-        //CLIENT INCOMING -- SERVER OUTGOING
-        // IPC_SERVER_VERSION
-        case(8):
-        {
-
-        }
-        break;
-
-        // IPC_SOLVER_VERSION
-        case(9):
-        {
-
-        }
-        break;
-
-        // IPC_POST_PROC_DATA
-        case(10):
-        {
-
-        }
-        break;
-
-        // IPC_POST_SOLVER_STATE
-        case(11):
-        {
-
-        }
-        break;
-
-        // IPC_SOLVER_SHUTTING_DOWN
-        case(12):
-        {
-
-        }
-        break;
-
-        // IPC_ERROR
-        case(13):
-        {
-
-        }
-        break;
 
         // Testing
         case(100):
