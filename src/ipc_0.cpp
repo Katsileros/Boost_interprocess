@@ -19,15 +19,22 @@
 
 #include <triangles.h>
 
-int numData = 1;
-int internal_flag = 0;
+
+int numData = 15e06;
+int finish_flag = 0;
+int working_flag = 0;
+int check_flag = 0;
+int exit_flag = 1;
+
+int extraMem = 65536;
 
 void writeShmem()
 {
     using boost::this_thread::get_id;
 
     std::cout << "=====(working)=====>  Writing data to shared memory" << std::endl;
-    internal_flag = 0;
+    finish_flag = 0;
+    working_flag = 1;
 
     try
     {
@@ -39,7 +46,7 @@ void writeShmem()
             boost::interprocess::managed_shared_memory segment
                     (boost::interprocess::create_only
                     ,"DataSharedMemory" //segment name
-                    , 32*numData + (numData*sizeof(Triangle)) + 65536);
+                    , 32*numData + (numData*sizeof(Triangle)) + extraMem);
 
             //Alias an STL compatible allocator of ints that allocates ints from the managed
             //shared memory segment.  This allocator will allow to place containers
@@ -68,9 +75,14 @@ void writeShmem()
             //Insert data in the vector
             for(int i=0; i < numData; ++i){
                   vecTr->push_back(Triangle());
+
                   vecTr->at(i).node[0] = Point((real_t)std::rand(),(real_t)std::rand(),(real_t)std::rand());
                   vecTr->at(i).node[1] = Point((real_t)std::rand(),(real_t)std::rand(),(real_t)std::rand());
                   vecTr->at(i).node[2] = Point((real_t)std::rand(),(real_t)std::rand(),(real_t)std::rand());
+
+//                  vecTr->at(i).node[0] = Point(std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max());
+//                  vecTr->at(i).node[1] = Point(std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max());
+//                  vecTr->at(i).node[2] = Point(std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max());
 
                   //triang.push_back(vecTr->at(i));
             }
@@ -88,7 +100,8 @@ void writeShmem()
     }
 
     std::cout << "=====(working)=====>  Working thread finished" << std::endl;
-    internal_flag = 1;
+    finish_flag = 1;
+    working_flag = 0;
 
 }
 
@@ -103,15 +116,14 @@ void readMsg()
     // Open the mutex
     boost::interprocess::named_mutex named_mtx(boost::interprocess::open_only, "mtx");
 
-    // Lock the mutex
-    boost::interprocess::scoped_lock<boost::interprocess::named_mutex> lock(named_mtx);
+    //Open managed shared memory
+    boost::interprocess::managed_shared_memory shmMsg(boost::interprocess::open_only, "MsgSharedMemory");
 
     // Waiting
     std::cout << "waiting for signal" << std::endl;
+    // Lock the mutex
+    boost::interprocess::scoped_lock<boost::interprocess::named_mutex> lock(named_mtx);
     named_cnd.wait(lock);
-
-    //Open managed shared memory
-    boost::interprocess::managed_shared_memory shmMsg(boost::interprocess::open_only, "MsgSharedMemory");
 
     //Find the intmsg
     int *intmsg = shmMsg.find<int> ("IntMSG").first;
@@ -125,7 +137,7 @@ void readMsg()
         // IPC_MESH_DATA
         case(3):
         {
-             if(internal_flag) {
+             if(finish_flag) {
                  std::cout << "Notify ipc_1 to read the data" << std::endl;
                  *intmsg = 999;
              }
@@ -140,10 +152,17 @@ void readMsg()
         // IPC_REQ_SOLVE
         case(5):
         {
-             boost::thread thread1(writeShmem);
+             if(working_flag)
+             {
+                std::cout << "Send msg to ipc_1 that worker is still running" << std::endl;
+             }
+             else
+             {
+                 named_cnd.notify_all();
+                 boost::thread thread1(writeShmem);
+             }
         }
         break;
-
 
         // Testing
         case(100):
@@ -152,6 +171,11 @@ void readMsg()
         }
         break;
 
+        default:
+        {
+            std::cout << "Unknown command" << std::endl;
+            named_cnd.notify_all();
+        }
     }
 
 }
@@ -164,7 +188,7 @@ void createMsgSharedMem()
     // Delete if previous instance exists
     boost::interprocess::shared_memory_object::remove("MsgSharedMemory");
     //Construct managed shared memory
-    boost::interprocess::managed_shared_memory shmMsg(boost::interprocess::create_only, "MsgSharedMemory", 65536);
+    boost::interprocess::managed_shared_memory shmMsg(boost::interprocess::create_only, "MsgSharedMemory", extraMem);
 
     //Create an object of MyType initialized to {0.0, 0}
     int *intmsg = shmMsg.construct<int>
@@ -185,9 +209,9 @@ void createMsgSharedMem()
 
 void checkData()
 {
- boost::interprocess::managed_shared_memory segment1
+         boost::interprocess::managed_shared_memory segment
          (boost::interprocess::open_only
-         ,"workingDataSharedMemory"); //segment name
+         ,"DataSharedMemory"); //segment name
 
          //Alias an STL compatible allocator of ints that allocates ints from the managed
          //shared memory segment.  This allocator will allow to place containers
@@ -198,23 +222,7 @@ void checkData()
          typedef std::vector<Triangle, ShmemAllocator> MyVector;
 
          //Initialize shared memory STL-compatible allocator
-         const ShmemAllocator alloc_inst(segment1.get_segment_manager());
-
-         //Construct a shared memory
-         MyVector *myvector1 = segment1.find<MyVector>("workingDataVector").first;
-
-         std::vector<Triangle> vecTr1;
-         // Read the data
-         for(int i=0;i<numData;i++) {
-             vecTr1.push_back( myvector1->at(i) );
-         }
-
-         //printTriangle( vecTr );
-
-         boost::interprocess::managed_shared_memory segment
-         (boost::interprocess::open_only
-         ,"DataSharedMemory"); //segment name
-
+         const ShmemAllocator alloc_inst(segment.get_segment_manager());
          //Construct a shared memory
          MyVector *myvector = segment.find<MyVector>("DataVector").first;
 
@@ -226,7 +234,21 @@ void checkData()
 
          //printTriangle( vecTr );
 
-         int check_flag = 0;
+         boost::interprocess::managed_shared_memory segment1
+         (boost::interprocess::open_only
+         ,"workingDataSharedMemory"); //segment name
+
+         //Construct a shared memory
+         MyVector *myvector1 = segment1.find<MyVector>("workingDataVector").first;
+
+         std::vector<Triangle> vecTr1;
+         // Read the data
+         for(int i=0;i<numData;i++) {
+             vecTr1.push_back( myvector1->at(i) );
+         }
+
+         //printTriangle( vecTr1 );
+
          // Check the triangles
          for(int i=0;i<numData;i++)
          {
@@ -237,28 +259,17 @@ void checkData()
              }
          }
 
-         if(check_flag)
-             std::cout << "============ IPC ERROR ==============" << std::endl;
-         else
-             std::cout << "============ IPC SUCCESS ============" << std::endl;
 
+         if(check_flag)
+             std::cout << "\n============ IPC ERROR ==============\n" << std::endl;
+         else {
+             exit_flag = 0;
+             std::cout << "\n============ IPC SUCCESS ============\n" << std::endl;
+         }
 }
 
-
-int main(int argc, char *argv[])
+void terminate()
 {
-
-    std::cout << "Executing main" << std::endl;
-
-    // Create the message shared mem space
-    createMsgSharedMem();
-
-    while(1) {
-        readMsg();
-    }
-
-    std::cout << "Terminating main" << std::endl;
-
     // Delete shared memory segments
     boost::interprocess::shared_memory_object::remove("MsgSharedMemory");
     // Delete mutex and cond variable
@@ -266,5 +277,25 @@ int main(int argc, char *argv[])
     boost::interprocess::named_condition::remove("cnd");
     // Remove data shared memory segment
     boost::interprocess::shared_memory_object::remove("DataSharedMemory");
+}
+
+
+int main(int argc, char *argv[])
+{
+    std::cout << "Executing main" << std::endl;
+
+    // Create the message shared mem space
+    createMsgSharedMem();
+
+    // Keep reading messages
+    while(exit_flag) {
+        readMsg();
+    }
+
+    // Terminate
+    std::cout << "Terminating main" << std::endl;
+    terminate();
+
+    return (check_flag == 1);
 }
 

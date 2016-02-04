@@ -19,14 +19,15 @@
 
 #include <triangles.h>
 
-int numData = 1;
+int numData = 15e06;
+int extraMem = 65536;
 
 void readDataShm();
 
 int main(int argc, char *argv[])
 {
   boost::interprocess::named_condition named_cnd(boost::interprocess::open_only, "cnd");
-  boost::interprocess::named_mutex named_mtx(boost::interprocess::open_or_create, "mtx1");
+  boost::interprocess::named_mutex named_mtx(boost::interprocess::open_only, "mtx");
 
   try
      {
@@ -40,50 +41,43 @@ int main(int argc, char *argv[])
        *intmsg = 5;
 
        // Signal ipc_1 and wait
-       named_cnd.notify_all();
        std::cout << "ipc_1 send initial signal and waiting ..." << std::endl;
+       named_cnd.notify_all();
 
        try
-        {
-            //scoped_lock<named_mutex> lock(named_mtx,try_to_lock);
+          {
+            boost::interprocess::scoped_lock<boost::interprocess::named_mutex> lock(named_mtx,boost::interprocess::try_to_lock);
+            named_cnd.wait(lock);
+         }
+         catch(boost::interprocess::interprocess_exception &ex)
+         {
+            std::cout << "Exception Error:  " << ex.what() << std::endl;
+            return 1;
+         }
 
+       int stop_flag = 1;
+       while(stop_flag)
+       {
+
+         boost::this_thread::sleep_for(boost::chrono::seconds(1));
+
+         *intmsg = (std::rand() % 10) + 1;
+         // Send message to take back the data
+         while(*intmsg == 5) { *intmsg = (std::rand() % 10) + 1; }
+         //*intmsg = 3;
+
+         // Signal ipc_1 and wait
+         std::cout << "ipc_1 request: " << *intmsg << std::endl;
+
+         try
+          {
             //if(lock)
             //    std::cout << "ipc_1 waiting ..." << std::endl;
             //else
             //    std::cout << "lock error" << std::endl;
-
-             boost::this_thread::sleep_for(boost::chrono::seconds(1));
-            //named_cnd.wait(lock);
-         }
-         catch(boost::interprocess::interprocess_exception &ex)
-         {
-             std::cout << "Exception Error:  " << ex.what() << std::endl;
-             return 1;
-         }
-
-        int stop_flag = 1;
-
-        while(stop_flag)
-        {
-
-         boost::this_thread::sleep_for(boost::chrono::seconds(1));
-
-         // Send message to take back the data
-         *intmsg = 3;
-
-         // Signal ipc_1 and wait
-         named_cnd.notify_all();
-         std::cout << "ipc_1 request data and waiting ..." << std::endl;
-
-         try
-          {
+            //std::cout << " ====================== here in working (LOCKED) ====================" << std::endl;
             boost::interprocess::scoped_lock<boost::interprocess::named_mutex> lock(named_mtx,boost::interprocess::try_to_lock);
-
-            if(lock)
-                std::cout << "ipc_1 waiting ..." << std::endl;
-            else
-                std::cout << "lock error" << std::endl;
-
+            named_cnd.notify_all();
             named_cnd.wait(lock);
          }
          catch(boost::interprocess::interprocess_exception &ex)
@@ -96,22 +90,35 @@ int main(int argc, char *argv[])
         //intmsg = shmMsg.find<int> ("IntMSG").first;
         std::cout << "Read intmsg: " << *intmsg << std::endl;
 
-        if(*intmsg == 99) {
-            std::cout << "Data is not ready yet." << std::endl;
-        }
-        else if(*intmsg == 999) {
-            std::cout << "Call readDataShm function" << std::endl;
-            readDataShm();
+        switch(*intmsg)
+        {
+            case(99):
+            {
+                std::cout << "Data is not ready yet." << std::endl;
+            }
+            break;
 
-            // Send message to take back the data
-            *intmsg = 100;
+            case(999):
+            {
+                std::cout << "Call readDataShm function" << std::endl;
+                readDataShm();
 
-            // Signal ipc_0 to test data
-            named_cnd.notify_all();
-            stop_flag = 0;
+                // Send message to take back the data
+                *intmsg = 100;
+
+                // Signal ipc_0 to test data
+                named_cnd.notify_all();
+                stop_flag = 0;
+            }
+            break;
+
+            default:
+            {
+                std::cout << "Unrecognized command" << std::endl;
+            }
         }
 
-        }
+       }
       }
 
       catch(...){
@@ -119,14 +126,14 @@ int main(int argc, char *argv[])
           throw;
       }
 
-    boost::interprocess::named_mutex::remove("mtx1");
+    //boost::interprocess::named_mutex::remove("mtx");
 }
 
 void writeShmem(std::vector<Triangle> vec);
 
 void readDataShm()
 {
- boost::interprocess::managed_shared_memory segment
+         boost::interprocess::managed_shared_memory segment
          (boost::interprocess::open_only
          ,"DataSharedMemory"); //segment name
 
@@ -151,6 +158,7 @@ void readDataShm()
          }
 
          //printTriangle( vecTr );
+         //printf("\n");
 
          // Write data back to another shared segment
          writeShmem(vecTr);
@@ -173,7 +181,7 @@ void writeShmem(std::vector<Triangle> vec)
             boost::interprocess::managed_shared_memory segment
                     (boost::interprocess::create_only
                     ,"workingDataSharedMemory" //segment name
-                    , 32*numData + (numData*sizeof(Triangle)) + 65536);
+                    , 32*numData + (numData*sizeof(Triangle)) + extraMem);
 
             //Alias an STL compatible allocator of ints that allocates ints from the managed
             //shared memory segment.  This allocator will allow to place containers
@@ -199,19 +207,17 @@ void writeShmem(std::vector<Triangle> vec)
 
             //std::cout << "vec size: " << vec.size() << std::endl;
 
-            //std::vector<Triangle> triang;
+            std::vector<Triangle> triang;
             //Insert data in the vector
             for(int i=0; i < numData; ++i){
                   vecTr->push_back(Triangle());
                   vecTr->at(i) = vec[i];
-                  vecTr->at(i).node[0] = Point((real_t)std::rand(),(real_t)std::rand(),(real_t)std::rand());
-                  vecTr->at(i).node[1] = Point((real_t)std::rand(),(real_t)std::rand(),(real_t)std::rand());
-                  vecTr->at(i).node[2] = Point((real_t)std::rand(),(real_t)std::rand(),(real_t)std::rand());
 
-                  //triang.push_back(vecTr->at(i));
+                  triang.push_back(vecTr->at(i));
             }
 
             //printTriangle( triang );
+            //printf("\n");
 
             //free_memory_after_allocation = segment.get_free_memory();
             //std::cout << "free memory after vector initialization: " << (float) (free_memory_after_allocation / (1024*1024)) << " MB" << std::endl;

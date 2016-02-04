@@ -37,3 +37,19 @@ struct Triangle
         return(other.node[0] == node[0] && other.node[1] == node[1] && other.node[2] == node[2]); }
 
 };
+
+void printTriangle(std::vector<struct Triangle> vec)
+{
+    printf("\n\nvec.size() = %zu \n" , vec.size());
+    for(size_t i = 0 ; i < vec.size(); i++)
+    {
+        Triangle t = vec.at(i);
+        for(int node_index = 0 ; node_index <=2 ; node_index++)
+        {
+            printf("Node[%d]  = %f  " , node_index ,  t.node[node_index].data[0] );
+            printf("Node[%d]  = %f  " , node_index ,  t.node[node_index].data[1] );
+            printf("Node[%d]  = %f\n" , node_index ,  t.node[node_index].data[2] );
+        }
+        printf("\n");
+    }
+}
