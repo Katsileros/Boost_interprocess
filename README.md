@@ -1,5 +1,5 @@
-BOOST IPC Testing
-================
+BOOST IPC
+=========
 
 Description
 ===========
@@ -10,7 +10,7 @@ Libraries
 =========
 This project uses boost::interprocess and boost::thread libraries.
 
-Testing
+Basic Testing
 =======
 Simple testing scenarios been written into source code files.
 	-1st test is checking if the two processes read exactly the same data
@@ -23,5 +23,5 @@ Execute
 	cmake ..
 	make
 
-	ctest -V test_ipc
+	run ipc_0 and then ipc_1
 
